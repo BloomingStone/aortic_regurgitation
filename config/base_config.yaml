@@ -1,0 +1,52 @@
+init_pose:
+  alpha: -10.4  # degree
+  beta: -19.6   # degree
+
+geom:
+  sdd: 943.0
+  sod: 736.9425104
+  height: 512
+  delx: 0.368
+
+data:
+  img_path: /media/E/sj/Code/aortic_regurgitation/data/3D/xu_total.nii.gz
+  seg_path: /media/E/sj/Code/aortic_regurgitation/data/3D/xu_total_seg_partial.nii.gz
+  whole_heart_label_path: /media/E/sj/Code/aortic_regurgitation/data/3D/xu_whole_heart_seg.nii.gz
+  image_2d_path: /media/E/sj/Code/aortic_regurgitation/data/xu.png
+
+train:
+  n_itrs: 200
+  val_interval: 5
+
+optimizer:
+  type: "adam"
+  lr_rotations: 0.01
+  lr_translations: 5.
+  init_args: {}
+
+scheduler:
+  type: "cosine"  # Options: step, exponential, cosine, reduceonplateau, onecycle, poly
+  T_max: 200  # For cosine: total iterations, for poly: total iterations
+  eta_min: 0  # For cosine: minimum learning rate
+  # step_size: 50  # For step: decay every N iterations
+  # gamma: 0.5  # For step/exponential: decay factor
+  # mode: "min"  # For reduceonplateau: mode ("min" or "max")
+  # factor: 0.5  # For reduceonplateau: reduction factor
+  # patience: 10  # For reduceonplateau: epochs to wait before reducing
+  # max_lr: 0.1  # For onecycle: maximum learning rate
+  # total_steps: 200  # For onecycle: total steps
+  # power: 0.9  # For poly: polynomial power
+
+#   type: "NCC"
+#   init_args: {}
+
+# loss:
+#   type: "LNCC"
+#   init_args:
+#     spatial_dims: 2
+#     kernel_size: 71
+#   multiscale: [0, 1, 2, 4, 8]
+
+loss:
+  type: MI
+  init_args: {}

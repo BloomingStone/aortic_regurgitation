@@ -1,0 +1,10 @@
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+data/
+
+*.nii.gz
+*.nii
+
+wandb/
