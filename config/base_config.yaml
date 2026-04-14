@@ -9,10 +9,10 @@ geom:
   delx: 0.368
 
 data:
-  img_path: /media/E/sj/Code/aortic_regurgitation/data/3D/xu_total.nii.gz
-  seg_path: /media/E/sj/Code/aortic_regurgitation/data/3D/xu_total_seg_partial.nii.gz
-  whole_heart_label_path: /media/E/sj/Code/aortic_regurgitation/data/3D/xu_whole_heart_seg.nii.gz
-  image_2d_path: /media/E/sj/Code/aortic_regurgitation/data/xu.png
+  img_path: data/3D/xu_total.nii.gz
+  seg_path: data/3D/xu_total_seg_partial.nii.gz
+  whole_heart_label_path: data/3D/xu_whole_heart_seg.nii.gz
+  image_2d_path: data/xu.png
 
 train:
   n_itrs: 200

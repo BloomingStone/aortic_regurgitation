@@ -433,7 +433,7 @@ def load_config(path: Path) -> EasyDict:
 
 
 def main():
-    config_path = Path("/media/E/sj/Code/aortic_regurgitation/config/base_config.yaml")
+    config_path = Path("config/base_config.yaml")
     cfg: Any = load_config(config_path)
 
     # load config and init wandb
