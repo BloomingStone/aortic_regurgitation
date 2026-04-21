@@ -1,8 +1,10 @@
 # 升主动脉配准
 
+使用[diffdrr](https://github.com/eigenvivek/DiffDRR)进行升主动脉配准，以进行后续计算闭合率等指标。
+
 ## 环境配置
 
-此项目使用 [pixi](https://pixi.sh/) 配置环境
+此项目使用 [pixi](https://pixi.sh/) 配置环境，可能需要从下载pixi: https://pixi.sh/
 
 使用 `pixi install --frozen` 从 `pixi.lock` 安装环境。该方法确保环境的一致性，避免因依赖版本变化引起的问题。
 
