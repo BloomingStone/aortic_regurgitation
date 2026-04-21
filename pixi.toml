@@ -1,13 +1,10 @@
 [workspace]
 authors = ["shi_jie <1592277253@qq.com>"]
 channels = [
-    "nvidia/label/cuda-12.4.0",
-    "nvidia",
     "conda-forge",
-    "pytorch",
 ]
 name = "aortic_regurgitation"
-platforms = ["linux-64"]
+platforms = ["linux-64", "win-64"]
 version = "0.1.0"
 
 [pypi-options]
@@ -22,8 +19,7 @@ CUDA_VISIBLE_DEVICES = "3"
 [tasks]
 
 [dependencies]
-pytorch = { version = "2.5.1.*", channel = "pytorch" }
-pytorch-cuda = { version = "12.4.*", channel = "pytorch" }
+pytorch-gpu = "*"
 torchio = ">=0.21.1,<0.22"
 nibabel = ">=5.3.2,<6"
 notebook = ">=7.5.2,<8"
