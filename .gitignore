@@ -8,3 +8,7 @@ data/
 *.nii
 
 wandb/
+
+**/__pycache__/
+
+.vscode
