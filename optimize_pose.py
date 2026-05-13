@@ -4,7 +4,6 @@ from math import radians
 from pathlib import Path
 from enum import IntEnum, StrEnum
 from itertools import product
-from functools import partial
 
 import numpy as np
 from numpy import ndarray
@@ -16,6 +15,7 @@ from torch.utils.dlpack import to_dlpack as tensor2dlpack   #type: ignore
 import torch.nn.functional as F
 from torchio import LabelMap, ScalarImage, Subject
 import torchvision.transforms as T
+from torch.optim import lr_scheduler
 
 from scipy.ndimage import center_of_mass
 
@@ -247,7 +247,7 @@ def adjust_iodine_contrast(
     volume: Tensor, 
     label_to_water: Tensor, 
     label_contrast: Tensor,
-    contrast_HU = 200.0
+    contrast_HU = 350.0
 ) -> Tensor:
     """
     Adjust the contrast of the iodine-enhanced CTA image based on the label masks.
@@ -577,13 +577,9 @@ class StageConfig:
 
 def validation_score(metrics: dict[ValidMetricKeys, float]) -> float:
     return (
-        1.0 * metrics[ValidMetricKeys.NCC]
-        + 1.0 * metrics[ValidMetricKeys.PSNR]
-        - 1.0 * metrics[ValidMetricKeys.MSE]
-        - 1.0 * metrics[ValidMetricKeys.MAE]
-        - 1.0 * metrics[ValidMetricKeys.GRAD_MSE]
-        + 5.0 * metrics[ValidMetricKeys.SSIM]
-        + 5.0 * metrics[ValidMetricKeys.MI]
+        + 1.0 * metrics[ValidMetricKeys.SSIM]
+        + 1.0 * metrics[ValidMetricKeys.MI]
+        + 1.0 * metrics[ValidMetricKeys.NCC]
     )
 
 class BestMetricTracker:
@@ -705,7 +701,8 @@ def train(
     n_itrs: int,
     val_intervals: int,
     downsample_stride: int = 1,
-    stage_name: str = "fine"
+    stage_name: str = "fine",
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
 ) -> tuple[dict[ValidMetricKeys, float], Tensor, Tensor]:
     # Initialize an optimizer with different learning rates
     # for rotations and translations since they have different scales
@@ -737,6 +734,9 @@ def train(
 
         loss.backward()
         optim.step()
+        
+        if scheduler is not None:
+            scheduler.step()
         
         # Log current learning rates
         current_lr_rot = optim.param_groups[0]['lr']
@@ -830,7 +830,7 @@ def main():
     # init DRR with geometry
     geom = CArmGeometry(
         sdd     =   cfg.geom.sdd,
-        sod     =   cfg.geom.sod,
+        sod     =   cfg.geom.sod * 2.5,
         height  =   cfg.geom.height,
         delx    =   cfg.geom.delx
     )
@@ -900,6 +900,7 @@ def main():
     coarse_cfg = cfg.get("coarse_to_fine", None)
     if coarse_cfg is not None and coarse_cfg.get("stages", None):
         stages = [StageConfig.from_dict(stage) for stage in coarse_cfg.stages]
+        total_itrs = sum(stage.n_itrs for stage in stages)
     else:
         total_itrs = int(cfg.train.n_itrs)
         coarse_itrs = max(1, total_itrs // 3)
@@ -910,6 +911,20 @@ def main():
             StageConfig(name="mid", downsample_stride=2, n_itrs=mid_itrs, lr_rot_mult=0.5, lr_trans_mult=0.5),
             StageConfig(name="fine", downsample_stride=1, n_itrs=fine_itrs, lr_rot_mult=1.0, lr_trans_mult=1.0),
         ]
+    
+    scheduler = None
+    # # 使用余弦重启学习率衰减（退火机制）防止陷入局部最优
+    # scheduler = lr_scheduler.CosineAnnealingWarmRestarts(
+    #     optim,
+    #     T_0=total_itrs // (len(stages) * 3),
+    #     T_mult=2,       # fine stage
+    #     eta_min=1e-6,
+    # )
+    
+    # scheduler = torch.optim.lr_scheduler.ExponentialLR(optim, gamma=0.99)
+    
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optim, milestones=[stages[0].n_itrs, stages[0].n_itrs + stages[1].n_itrs], gamma=0.5)
+    
 
     stage_summaries: list[dict[str, Any]] = []
     for stage in stages:
@@ -932,6 +947,7 @@ def main():
             val_intervals = cfg.train.val_interval,
             downsample_stride = stage.downsample_stride,
             stage_name = stage.name,
+            scheduler = scheduler,  #type: ignore
         )
         stage_summaries.append({
             "stage": stage.name,

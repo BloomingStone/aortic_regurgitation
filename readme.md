@@ -33,3 +33,9 @@ log 默认使用 wandb 可以参考[官网](https://wandb.ai/)进行注册登录
 - `geom.delx`: 探测器像素间距（单位：mm/pixel），`0018,1164 Imager Pixel Spacing`
 
 注意，目前仅支持图像高度和宽度相同，且像素间距相同的情况，未使用到 `0028,0011 Columns`
+
+### 初始化参数对结果的影响
+
+可能需要调整初始化参数，使其投影结果与真实图像尽可能接近，并适当提高视角从而能看到更多组织。后续位姿优化效果才相对较好
+
+https://wandb.ai/bloomingstone-southeast-university/aortic_regurgitation/reports/---VmlldzoxNjg2NTk1OQ?accessToken=vcgh7ukovopljng5hz2mwshciv67iy0mywzvhzaexal5wxgl9st5e7bz26weawem
