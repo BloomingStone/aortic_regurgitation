@@ -5,7 +5,7 @@ init_pose:
 geom:
   sdd: 989
   sod: 768.9802451
-  height: 512
+  height: 256
   delx: 0.368
 
 data:
@@ -18,7 +18,7 @@ data:
   image_2d_path: data/BIANCHUANBAI.png
 train:
   n_itrs: 200
-  val_interval: 5
+  val_interval: 10
 
 optimizer:
   type: "adam"
@@ -26,21 +26,6 @@ optimizer:
   lr_translations: 5.
   init_args: {}
 
-scheduler:
-  type: "cosine"  # Options: step, exponential, cosine, reduceonplateau, onecycle, poly
-  T_max: 200  # For cosine: total iterations, for poly: total iterations
-  eta_min: 0  # For cosine: minimum learning rate
-  # step_size: 50  # For step: decay every N iterations
-  # gamma: 0.5  # For step/exponential: decay factor
-  # mode: "min"  # For reduceonplateau: mode ("min" or "max")
-  # factor: 0.5  # For reduceonplateau: reduction factor
-  # patience: 10  # For reduceonplateau: epochs to wait before reducing
-  # max_lr: 0.1  # For onecycle: maximum learning rate
-  # total_steps: 200  # For onecycle: total steps
-  # power: 0.9  # For poly: polynomial power
-
-#   type: "NCC"
-#   init_args: {}
 
 # loss:
 #   type: "LNCC"
@@ -50,5 +35,38 @@ scheduler:
 #   multiscale: [0, 1, 2, 4, 8]
 
 loss:
-  type: MI
-  init_args: {}
+  - type: "MI"
+    weight: 1.0
+
+  - type: "SSIM"
+    weight: 1.0
+
+drr:
+  resample_factor: 0.35
+
+
+coarse_init:
+  img_downsample_stride: 4
+  init_gamma_deg: 0.0
+  alpha_grid:
+    window_size: 5.0
+    step_size: 1.0
+  beta_grid:
+    window_size: 5.0
+    step_size: 1.0
+  sod_grid:
+    window_size: 10.0
+    step_size: 2.0
+
+
+coarse_to_fine:
+  stages:
+    - name: coarse
+      downsample_stride: 4
+      n_itrs: 500
+    - name: mid
+      downsample_stride: 2
+      n_itrs: 500
+    - name: fine
+      downsample_stride: 1
+      n_itrs: 500
