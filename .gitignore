@@ -2,7 +2,9 @@
 .pixi/*
 !.pixi/config.toml
 
-data/
+./data/
+./data
+data*
 
 *.nii.gz
 *.nii
@@ -11,5 +13,8 @@ wandb/
 
 **/__pycache__/
 
+.vscode/
 .vscode
-.vscode/*
+
+results/
+results
