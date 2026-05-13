@@ -5,7 +5,7 @@ init_pose:
 geom:
   sdd: 989
   sod: 768.9802451
-  height: 256
+  height: 460
   delx: 0.368
 
 data:
@@ -15,15 +15,15 @@ data:
   img_path: data/3D/bianchuanbai.nii.gz
   seg_path: data/3D/bianchuanbai_seg_partial.nii.gz
   whole_heart_label_path: data/3D/bianchuanbai_whole_heart_seg.nii.gz
-  image_2d_path: data/BIANCHUANBAI.png
+  image_2d_path: data/BIANCHUANBAIframe_029.png
 train:
-  n_itrs: 200
+  # n_itrs: 200  # 仅当 coarse_to_fine.stages 中 没有定义 n_itrs 时才使用
   val_interval: 10
 
 optimizer:
   type: "adam"
   lr_rotations: 0.01
-  lr_translations: 5.
+  lr_translations: 3.0
   init_args: {}
 
 
@@ -42,7 +42,7 @@ loss:
     weight: 1.0
 
 drr:
-  resample_factor: 0.35
+  resample_factor: 0.5
 
 
 coarse_init:
@@ -63,10 +63,10 @@ coarse_to_fine:
   stages:
     - name: coarse
       downsample_stride: 4
-      n_itrs: 500
+      n_itrs: 100
     - name: mid
       downsample_stride: 2
-      n_itrs: 500
+      n_itrs: 100
     - name: fine
       downsample_stride: 1
-      n_itrs: 500
+      n_itrs: 100

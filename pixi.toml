@@ -14,7 +14,7 @@ index-url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
 cuda = "12.4"
 
 [activation.env]
-CUDA_VISIBLE_DEVICES = "3"
+CUDA_VISIBLE_DEVICES = "1"
 
 [tasks]
 
