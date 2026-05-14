@@ -93,7 +93,7 @@ def save_masks_only(
     ao_mask: Tensor,
     lv_mask: Tensor,
     output_path: Path,
-    save_single_channel: bool = True,
+    save_single_channel: bool = False,
 ) -> dict[str, Path] | None:
     """保存纯掩码图像（黑色背景，AO 红色，LV 绿色）。
 
@@ -103,7 +103,7 @@ def save_masks_only(
         ao_mask: 主动脉掩码 (H, W)。
         lv_mask: 左心室掩码 (H, W)。
         output_path: 输出 PNG 路径（三通道彩色）。
-        save_single_channel: 是否额外保存单通道版本，默认 True。
+        save_single_channel: 是否额外保存单通道版本，默认 False。
 
     Returns:
         如果 save_single_channel 为 True, 返回单通道文件路径字典；否则返回 None。
