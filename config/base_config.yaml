@@ -1,21 +1,21 @@
 init_pose:
-  alpha: 17.9  # degree
-  beta: -24.1   # degree
+  alpha: -10.4  # degree
+  beta: -19.6   # degree
 
 geom:
-  sdd: 989
-  sod: 768.9802451
-  height: 460
+  sdd: 943.0
+  sod: 736.9425104
+  height: 512
   delx: 0.368
 
 data:
-  #img_path: data/3D/xu_total.nii.gz
-  #seg_path: data/3D/xu_total_seg_partial.nii.gz
-  #whole_heart_label_path: data/3D/xu_whole_heart_seg.nii.gz
-  img_path: data/3D/bianchuanbai.nii.gz
-  seg_path: data/3D/bianchuanbai_seg_partial.nii.gz
-  whole_heart_label_path: data/3D/bianchuanbai_whole_heart_seg.nii.gz
-  image_2d_path: data/BIANCHUANBAIframe_029.png
+  img_path: data/3D/xu_total.nii.gz
+  seg_path: data/3D/xu_total_seg_partial.nii.gz
+  whole_heart_label_path: data/3D/xu_whole_heart_seg.nii.gz
+  # img_path: data/3D/bianchuanbai.nii.gz
+  # seg_path: data/3D/bianchuanbai_seg_partial.nii.gz
+  # whole_heart_label_path: data/3D/bianchuanbai_whole_heart_seg.nii.gz
+  image_2d_path: data/xu_with_aorta.png
 train:
   # n_itrs: 200  # 仅当 coarse_to_fine.stages 中 没有定义 n_itrs 时才使用
   val_interval: 10

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from numpy import ndarray
@@ -42,7 +42,7 @@ def load_nifti(file: Path, is_label: bool = False) -> MedicalImage:
 
 def get_clip_roi_from_label(
     label: Tensor,
-    margin: int = 20,
+    margin: int | tuple[int, int, int] = (30, 30, 5),
     keep_xy_shape: bool = True
 ) -> ClipROITransform:
     """根据标签边界框生成 ROI 裁剪变换。
@@ -55,16 +55,21 @@ def get_clip_roi_from_label(
     Returns:
         ClipROITransform 实例。
     """
-    if margin < 0:
+    if isinstance(margin, int):
+        margin = (margin, margin, margin)
+    
+    if any([m < 0 for m in margin]):
         raise ValueError("Margin must be non-negative")
     if label.dim() < 3:
         raise ValueError("Label must have at least 3 dimensions (D, H, W)")
     shape = torch.tensor(label.shape[-3:])
+    
+    margin_tensor = torch.tensor(margin)
 
     label_bin = label.squeeze() > 0
     coords = torch.nonzero(label_bin)
-    min_coords = coords.min(dim=0).values - margin
-    max_coords = coords.max(dim=0).values + margin
+    min_coords = coords.min(dim=0).values - margin_tensor
+    max_coords = coords.max(dim=0).values + margin_tensor
 
     min_coords = torch.max(min_coords, torch.zeros_like(min_coords))
     max_coords = torch.min(max_coords, shape - 1)
@@ -81,18 +86,18 @@ def get_clip_roi_from_label(
 
 
 def build_semantic_masks(
-    label: Tensor,
+    ascending_aorta_LV_label: Tensor,
     whole_heart_label: Tensor
-) -> dict[str, Tensor]:
+) -> dict[Literal["ascending_aorta", "lv", "CTA_contrast_area"], Tensor]:
     """构建语义掩码字典。
 
     Returns:
-        {"aorta": 主动脉掩码, "lv": 左心室掩码, "heart": 全心掩码}
+        {"ascending_aorta": 主动脉掩码, "lv": 左心室掩码, "CTA_contrast_area": CTA 对比度区域掩码}
     """
     return {
-        "aorta": (label == LabelID.AO) | (whole_heart_label == WholeHeartLabelID.AO),
-        "lv": label == LabelID.LV,
-        "heart": whole_heart_label == WholeHeartLabelID.HEART,
+        "ascending_aorta": (ascending_aorta_LV_label == LabelID.AO),
+        "lv": ascending_aorta_LV_label == LabelID.LV,
+        "CTA_contrast_area": (whole_heart_label > 0) | (ascending_aorta_LV_label > 0),
     }
 
 
@@ -100,16 +105,9 @@ def adjust_iodine_contrast(
     volume: Tensor,
     label_to_water: Tensor,
     label_contrast: Tensor,
-    contrast_HU: float = 300.0
+    contrast_HU: float = 200.0
 ) -> Tensor:
     """调整 CTA 碘造影剂对比度。
-
-    处理流程：
-    1. 移除体外仪器（HU > 1500）
-    2. 增强骨骼区域（HU > 300）
-    3. 将心脏/水区域映射到 HU ≈ 0
-    4. 增强主动脉造影剂区域
-    5. HU 归一化到 [0, 1]
 
     Args:
         volume: 输入 CTA 体数据 (1, 1, D, H, W)。

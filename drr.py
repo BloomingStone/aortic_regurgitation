@@ -58,7 +58,6 @@ def get_drr(
     print("Clip ROI Original volume shape:", volume.data.shape)
     clip_roi = get_clip_roi_from_label(
         (whole_heart_label.data == WholeHeartLabelID.HEART),
-        margin=5,
         keep_xy_shape=False,
     )
     volume = clip_roi(volume)
@@ -86,7 +85,7 @@ def get_drr(
         (whole_heart_label.data > 0), whole_heart_label.affine
     )
     masks = build_semantic_masks(label.data, whole_heart_label.data)
-    mapped_volume = adjust_iodine_contrast(volume.data, masks["heart"], masks["aorta"])
+    mapped_volume = adjust_iodine_contrast(volume.data, masks["CTA_contrast_area"], masks["ascending_aorta"])
 
     assert mapped_volume.dim() >= 3
     w, h, d = mapped_volume.shape[-3:]
