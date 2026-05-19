@@ -8,3 +8,10 @@ data/
 *.nii
 
 wandb/
+
+data
+
+results*
+
+__pycache__/
+*.pyc

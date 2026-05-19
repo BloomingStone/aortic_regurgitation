@@ -293,12 +293,92 @@ def run(reg: Registration) -> tuple[Tensor, Tensor]:
     img = proj.sum(dim=1, keepdim=True)
     img = img.max() - img
     img = img / img.max()
-    
+
     label = (proj > 0).to(torch.uint8).detach().squeeze()[[0, LabelID.AO, LabelID.LV]]
     del proj
     label[0] = 0
     label = label.argmax(0)
     return img, label
+
+
+def run_with_masks(reg: Registration) -> tuple[Tensor, Tensor, Tensor]:
+    """返回 img, combined_label, individual_masks
+    individual_masks: shape (2, H, W), 分别对应 AO 和 LV 的 mask
+    """
+    proj: Tensor = reg(mask_to_channels=True)
+    img = proj.sum(dim=1, keepdim=True)
+    img = img.max() - img
+    img = img / img.max()
+
+    # 分别获取 AO 和 LV 的 mask
+    # proj 形状: (num_labels, H, W), 索引 0 是背景, 1 是 AO, 2 是 LV
+    masks = (proj > 0).to(torch.float32).detach().squeeze()  # (3, H, W)
+    ao_mask = masks[LabelID.AO]  # AO
+    lv_mask = masks[LabelID.LV]  # LV
+
+    del proj
+    return img, ao_mask, lv_mask
+
+
+def save_label_overlay(
+    gt_img: Tensor,
+    ao_mask: Tensor,
+    lv_mask: Tensor,
+    output_path: Path,
+    alpha: float = 0.7
+):
+    """将 label 叠加到 gt_image 上保存
+    AO: 红色, LV: 绿色
+    alpha: mask 透明度 (0-1)，默认为 0.7 (70%)
+    """
+    # 转换为 numpy 并归一化到 0-255
+    gt_np = (gt_img.squeeze().cpu().detach() * 255).to(torch.uint8).numpy()
+    ao_np = (ao_mask.squeeze().cpu().detach().numpy() > 0).astype(np.uint8) * 255
+    lv_np = (lv_mask.squeeze().cpu().detach().numpy() > 0).astype(np.uint8) * 255
+
+    # 创建 RGB 图像
+    rgb = np.stack([gt_np, gt_np, gt_np], axis=-1).astype(np.float32)
+
+    # 叠加 AO (红色) - 带透明度
+    ao_mask_bool = ao_np > 0
+    rgb[ao_mask_bool, 0] = rgb[ao_mask_bool, 0] * (1 - alpha) + 255 * alpha
+    rgb[ao_mask_bool, 1] = rgb[ao_mask_bool, 1] * (1 - alpha) + 0 * alpha
+    rgb[ao_mask_bool, 2] = rgb[ao_mask_bool, 2] * (1 - alpha) + 0 * alpha
+
+    # 叠加 LV (绿色) - 带透明度
+    lv_mask_bool = lv_np > 0
+    rgb[lv_mask_bool, 0] = rgb[lv_mask_bool, 0] * (1 - alpha) + 0 * alpha
+    rgb[lv_mask_bool, 1] = rgb[lv_mask_bool, 1] * (1 - alpha) + 255 * alpha
+    rgb[lv_mask_bool, 2] = rgb[lv_mask_bool, 2] * (1 - alpha) + 0 * alpha
+
+    # 保存
+    Image.fromarray(rgb.astype(np.uint8)).save(output_path)
+
+
+def save_masks_only(
+    ao_mask: Tensor,
+    lv_mask: Tensor,
+    output_path: Path
+):
+    """保存单独的 mask 图片
+    AO: 红色, LV: 绿色, 背景: 黑色
+    """
+    # 转换为 numpy
+    ao_np = (ao_mask.squeeze().cpu().detach().numpy() > 0).astype(np.uint8)
+    lv_np = (lv_mask.squeeze().cpu().detach().numpy() > 0).astype(np.uint8)
+
+    # 创建 RGB 图像 (黑色背景)
+    h, w = ao_np.shape
+    rgb = np.zeros((h, w, 3), dtype=np.uint8)
+
+    # AO 红色
+    rgb[ao_np > 0, 0] = 255
+
+    # LV 绿色
+    rgb[lv_np > 0, 1] = 255
+
+    # 保存
+    Image.fromarray(rgb).save(output_path)
 
 class CheckpointedLNCC(nn.Module):
     def __init__(self, lncc: LocalNormalizedCrossCorrelationLoss):
@@ -366,12 +446,19 @@ def train(
     loss_fn: Callable,
     n_itrs: int,
     val_intervals: int,
-    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None
+    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+    save_dir: Optional[Path] = None
 ):
     # Initialize an optimizer with different learning rates
     # for rotations and translations since they have different scales
     wandb.watch(reg.drr)
-    
+
+    # Create save directory
+    if save_dir is None:
+        save_dir = Path("results")
+    if not save_dir.exists():
+        save_dir.mkdir(parents=True, exist_ok=True)
+
     # record init value
     def get_record(iter_: int, reg_: Registration, loss_: Tensor) -> dict[str, int|float]:
         alpha, beta, gamma = reg_.rotation.squeeze().tolist()
@@ -380,35 +467,53 @@ def train(
             "alpha": alpha, "beta": beta, "gamma": gamma,
             "bx": bx, "by": by, "bz": bz
         }
-    
+
     img, label = run(reg)
     record = get_record(0, reg, loss_fn(gt_img, img))
+
+    # Save initial result (第1次)
+    img, ao_mask, lv_mask = run_with_masks(reg)
+    save_label_overlay(gt_img, ao_mask, lv_mask, save_dir / "01_init_gt_mask.png", alpha=0.7)
+    save_masks_only(ao_mask, lv_mask, save_dir / "01_init_mask.png")
+    Image.fromarray((img.squeeze().cpu().detach().numpy() * 255).astype(np.uint8)).save(save_dir / "01_init_drr.png")
+
+    # 初始保存点索引为0，用于生成后续索引
+    save_point_indices = {n_itrs * i // 10: i + 2 for i in range(1, 10)}  # {10%:2, 20%:3, ..., 90%:10}
+
+    # 计算保存点：共10次 (0%, 10%, 20%, ..., 90%, 100%)
+    # save_point_indices: {迭代次数: 保存索引}，如 {10%:2, 20%:3, ..., 90%:10}
+    save_point_indices = {n_itrs * i // 10: i + 2 for i in range(1, 10)}
+
     for itr in (pbar := tqdm(range(n_itrs), ncols=100)):
         optim.zero_grad()
         img, label = run(reg)
-        
+
         loss: Tensor = loss_fn(gt_img, img)
         loss.backward()
         optim.step()
-        
+
         # Update learning rate scheduler
         if scheduler is not None:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(loss.item())
             else:
                 scheduler.step()
-        
+
         # Log current learning rates
         current_lr_rot = optim.param_groups[0]['lr']
         current_lr_trans = optim.param_groups[1]['lr']
-        
+
         pbar.set_description(f"loss = {loss.item():06f}")
         record = get_record(itr, reg, loss.detach())
         record["lr_rotations"] = current_lr_rot
         record["lr_translations"] = current_lr_trans
         wandb.log(record)
-        
-        if itr >= val_intervals and itr % val_intervals == 0:
+
+        # Save at specific intervals (第2-9次)
+        if itr in save_point_indices:
+            save_idx = save_point_indices[itr]  # 2, 3, ..., 10
+            img_val, ao_mask, lv_mask = run_with_masks(reg)
+
             masks={
                 "labels": {
                     'mask_data': label,
@@ -420,10 +525,23 @@ def train(
             }
             wandb.log(
                 {
-                    "drr_image": wandb.Image(img.detach().squeeze()[None], mode="L", masks=masks),
+                    "drr_image": wandb.Image(img_val.detach().squeeze()[None], mode="L", masks=masks),
                     "gt_image": wandb.Image(gt_img.squeeze()[None], mode="L", masks=masks),
                 }
             )
+
+            # 保存3张图
+            prefix = f"{save_idx:02d}_iter{itr:04d}"
+            save_label_overlay(gt_img, ao_mask, lv_mask, save_dir / f"{prefix}_gt_mask.png", alpha=0.7)
+            save_masks_only(ao_mask, lv_mask, save_dir / f"{prefix}_mask.png")
+            Image.fromarray((img_val.squeeze().cpu().detach().numpy() * 255).astype(np.uint8)).save(save_dir / f"{prefix}_drr.png")
+
+    # Save final result (第10次)
+    img_final, ao_mask_final, lv_mask_final = run_with_masks(reg)
+    save_label_overlay(gt_img, ao_mask_final, lv_mask_final, save_dir / "10_final_gt_mask.png", alpha=0.7)
+    save_masks_only(ao_mask_final, lv_mask_final, save_dir / "10_final_mask.png")
+    Image.fromarray((img_final.squeeze().cpu().detach().numpy() * 255).astype(np.uint8)).save(save_dir / "10_final_drr.png")
+    print(f"Results saved to {save_dir}")
 
 
 def load_config(path: Path) -> EasyDict:
@@ -517,7 +635,8 @@ def main():
         loss_fn =   loss_fn,
         n_itrs  =   cfg.train.n_itrs,
         val_intervals = cfg.train.val_interval,
-        scheduler = scheduler
+        scheduler = scheduler,
+        save_dir = Path("results")
     )
 
 
